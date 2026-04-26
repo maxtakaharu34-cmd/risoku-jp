@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
+<meta name="theme-color" content="#10b981" />
+<title>複利シミュレーター</title>
+<link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+P+One&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box}html,body{margin:0;padding:0;height:100%;overflow:hidden}
+body{font-family:system-ui,sans-serif;color:#064e3b;background:linear-gradient(180deg,#bbf7d0,#10b981);touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:transparent}
+#app{display:flex;flex-direction:column;height:100dvh;padding:14px;gap:10px;max-width:480px;margin:0 auto}
+.title{font-family:"Mochiy Pop P One",sans-serif;font-size:22px;color:#fff;-webkit-text-stroke:2.5px #064e3b;paint-order:stroke fill;text-shadow:3px 3px 0 #047857;text-align:center;margin:6px 0}
+.card{background:#fff;border:3px solid #064e3b;border-radius:14px;padding:14px;box-shadow:3px 3px 0 #064e3b;display:flex;flex-direction:column;gap:8px}
+.card label{font-size:11px;font-weight:bold;color:#10b981}
+.card input,.card select{background:#d1fae5;border:2px solid #064e3b;border-radius:8px;padding:10px;font-size:16px;font-family:inherit;width:100%}
+.row{display:flex;gap:8px}
+.row > div{flex:1}
+.result{flex:1;background:#fff;border:3px solid #064e3b;border-radius:18px;padding:18px;box-shadow:4px 4px 0 #064e3b;display:flex;flex-direction:column;gap:10px;overflow-y:auto}
+.result .total{text-align:center}
+.result .total .lbl{font-size:11px;opacity:.7}
+.result .total .big{font-family:"Mochiy Pop P One",sans-serif;font-size:42px;color:#10b981;-webkit-text-stroke:2px #064e3b;paint-order:stroke fill;line-height:1}
+.result .total .big small{font-size:16px}
+.breakdown{display:flex;justify-content:space-between;font-size:12px;border-top:1px dashed #d1fae5;padding-top:8px}
+.bar{display:flex;height:24px;border:2px solid #064e3b;border-radius:8px;overflow:hidden}
+.bar .principal{background:#10b981}
+.bar .interest{background:#fbbf24}
+.legend{display:flex;gap:10px;font-size:10px;justify-content:center}
+.legend span{display:flex;align-items:center;gap:4px}
+.legend .pri{width:10px;height:10px;background:#10b981;border-radius:2px}
+.legend .int{width:10px;height:10px;background:#fbbf24;border-radius:2px}
+.chart{flex:1;min-height:80px;background:#f0fdf4;border:1.5px solid #064e3b;border-radius:8px;padding:6px}
+.chart svg{width:100%;height:100%}
+.note{font-size:9px;text-align:center;opacity:.6;line-height:1.5}
+</style>
+</head>
+<body>
+<div id="app">
+<h1 class="title">複利シミュレーター 📈</h1>
+<div class="card">
+  <div class="row">
+    <div>
+      <label>初期資金（万円）</label>
+      <input type="number" id="init" inputmode="numeric" value="100"/>
+    </div>
+    <div>
+      <label>毎月積立（万円）</label>
+      <input type="number" id="monthly" inputmode="numeric" value="3"/>
+    </div>
+  </div>
+  <div class="row">
+    <div>
+      <label>年利（％）</label>
+      <input type="number" id="rate" inputmode="decimal" value="5" step="0.1"/>
+    </div>
+    <div>
+      <label>運用期間（年）</label>
+      <input type="number" id="years" inputmode="numeric" value="20"/>
+    </div>
+  </div>
+</div>
+<div class="result">
+  <div class="total">
+    <div class="lbl">最終資産</div>
+    <div class="big">¥<span id="final">0</span><small>万</small></div>
+  </div>
+  <div class="bar">
+    <div class="principal" id="bar-pri"></div>
+    <div class="interest" id="bar-int"></div>
+  </div>
+  <div class="legend">
+    <span><span class="pri"></span>元本: ¥<span id="pri">0</span>万</span>
+    <span><span class="int"></span>運用益: ¥<span id="int">0</span>万</span>
+  </div>
+  <div class="breakdown">
+    <span>10年後</span>
+    <span>¥<span id="y10">0</span>万</span>
+  </div>
+  <div class="breakdown">
+    <span>20年後</span>
+    <span>¥<span id="y20">0</span>万</span>
+  </div>
+  <div class="breakdown">
+    <span>30年後</span>
+    <span>¥<span id="y30">0</span>万</span>
+  </div>
+  <div class="chart" id="chart">
+    <svg viewBox="0 0 400 80" preserveAspectRatio="none">
+      <polyline id="line-pri" fill="none" stroke="#10b981" stroke-width="2"/>
+      <polyline id="line-int" fill="none" stroke="#fbbf24" stroke-width="2"/>
+    </svg>
+  </div>
+</div>
+<div class="note">※ 税・手数料は考慮していません。月複利で計算</div>
+</div>
+<script>
+(()=>{
+'use strict';
+const $=(id)=>document.getElementById(id);
+function calc(){
+  const init=parseFloat($('init').value)||0;
+  const monthly=parseFloat($('monthly').value)||0;
+  const rate=parseFloat($('rate').value)||0;
+  const years=Math.max(1,parseInt($('years').value)||1);
+  const m=rate/100/12;
+  // simulate
+  const points=[];
+  let balance=init;
+  for(let y=0;y<=Math.max(years,30);y++){
+    points.push({y,bal:balance,principal:init+monthly*12*y});
+    for(let i=0;i<12;i++){balance=balance*(1+m)+monthly}
+  }
+  const final=points[years].bal;
+  const pri=init+monthly*12*years;
+  const interest=final-pri;
+  $('final').textContent=Math.round(final).toLocaleString();
+  $('pri').textContent=Math.round(pri).toLocaleString();
+  $('int').textContent=Math.round(interest).toLocaleString();
+  const total=Math.max(1,pri+interest);
+  $('bar-pri').style.flex=pri/total;$('bar-int').style.flex=interest/total;
+  const at=(y)=>points[Math.min(y,points.length-1)]?.bal||0;
+  $('y10').textContent=Math.round(at(10)).toLocaleString();
+  $('y20').textContent=Math.round(at(20)).toLocaleString();
+  $('y30').textContent=Math.round(at(30)).toLocaleString();
+  // chart
+  const W=400,H=80;
+  const max=Math.max(...points.map(p=>p.bal));
+  const linePri=points.map((p,i)=>`${i/(points.length-1)*W},${H-p.principal/max*H*.95}`).join(' ');
+  const lineInt=points.map((p,i)=>`${i/(points.length-1)*W},${H-p.bal/max*H*.95}`).join(' ');
+  $('line-pri').setAttribute('points',linePri);
+  $('line-int').setAttribute('points',lineInt);
+}
+['init','monthly','rate','years'].forEach(id=>$(id).addEventListener('input',calc));
+calc();
+})();
+</script>
+</body>
+</html>
